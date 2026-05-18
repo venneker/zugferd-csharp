@@ -1,0 +1,8 @@
+# Default: any change requires sign-off from the Venneker BE-Lead.
+*                                @CodingSteve01
+
+# Hard guard around supply-chain-critical paths.
+/.github/workflows/              @CodingSteve01
+/.github/CODEOWNERS              @CodingSteve01
+**/*.csproj                      @CodingSteve01
+**/*.snk                         @CodingSteve01
