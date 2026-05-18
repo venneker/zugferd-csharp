@@ -1,0 +1,107 @@
+name: Publish Venneker package
+
+on:
+  push:
+    tags:
+      - 'v*-venneker.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package version (e.g. 18.0.0-venneker.1)'
+        required: true
+        default: '18.0.0-venneker.1'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Determine version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            ref="${GITHUB_REF#refs/tags/v}"
+            echo "version=$ref" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rewrite ZUGFeRD.PDF dependency to Venneker.ZUGFeRD
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          # Replace upstream package reference inside ZUGFeRD.PDF with the Venneker
+          # equivalent so the produced .nupkg declares the correct dependency.
+          python3 - <<'PY'
+          import os, re, pathlib
+          version = os.environ["VERSION"]
+          path = pathlib.Path("ZUGFeRD.PDF/ZUGFeRD.PDF.csproj")
+          text = path.read_text()
+          text = re.sub(
+              r'<PackageReference\s+Include="ZUGFeRD-csharp"\s+Version="[^"]+"\s*/>',
+              f'<PackageReference Include="Venneker.ZUGFeRD" Version="{version}" />',
+              text,
+          )
+          path.write_text(text)
+          print(text[text.index("ZUGFeRD") - 20: text.index("ZUGFeRD") + 200])
+          PY
+
+      - name: Pack Venneker.ZUGFeRD
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          dotnet pack ZUGFeRD/ZUGFeRD.csproj \
+            -c Release \
+            -p:PackageId=Venneker.ZUGFeRD \
+            -p:Version="$VERSION" \
+            -p:PackageRequireLicenseAcceptance=false \
+            -p:GeneratePackageOnBuild=false \
+            -o packages
+
+      - name: Configure local NuGet source for ZUGFeRD.PDF restore
+        run: |
+          cat > nuget.local.config <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="local" value="$(pwd)/packages" />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+          </configuration>
+          EOF
+
+      - name: Pack Venneker.ZUGFeRD.PDF
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          dotnet restore ZUGFeRD.PDF/ZUGFeRD.PDF.csproj --configfile nuget.local.config
+          dotnet pack ZUGFeRD.PDF/ZUGFeRD.PDF.csproj \
+            -c Release \
+            --no-restore \
+            -p:PackageId=Venneker.ZUGFeRD.PDF \
+            -p:Version="$VERSION" \
+            -p:PackageRequireLicenseAcceptance=false \
+            -p:GeneratePackageOnBuild=false \
+            -o packages
+
+      - name: List artifacts
+        run: ls -la packages/
+
+      - name: Push to GitHub Packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget push "packages/*.nupkg" \
+            --api-key "$GH_TOKEN" \
+            --source "https://nuget.pkg.github.com/venneker/index.json" \
+            --skip-duplicate
