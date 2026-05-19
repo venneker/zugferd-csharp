@@ -529,7 +529,10 @@ namespace s2industries.ZUGFeRD
         {
             List<string> validURIs = new List<string>()
                 {
-                    "urn:cen.eu:en16931:2017#conformant#urn:factur-x.eu:1p0:extended", // Factur-X 1.03 EXTENDED
+                    "urn:cen.eu:en16931:2017#conformant#urn:factur-x.eu:1p0:extended", // Factur-X 1.03 EXTENDED (spec uses "conformant")
+                    "urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:extended", // Factur-X EXTENDED — accept the "compliant" variant some generators emit
+                    "urn:cen.eu:en16931:2017#conformant#urn:factur-x.eu:1p0:en16931", // Factur-X EN 16931 (COMFORT) — conformant variant
+                    "urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:en16931", // Factur-X EN 16931 (COMFORT) — compliant variant
                     "urn:cen.eu:en16931:2017",  // Profil EN 16931 (COMFORT)
                     "urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:basic", // BASIC
                     "urn:factur-x.eu:1p0:basicwl", // BASIC WL
