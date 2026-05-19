@@ -80,6 +80,22 @@ namespace s2industries.ZUGFeRD.PDF
 
 
         /// <summary>
+        /// Embeds the supplied raw XML bytes verbatim into the source PDF and writes the
+        /// resulting hybrid PDF/A-3 to <paramref name="targetPdfStream"/>. Use this overload
+        /// when round-tripping the XML through an <see cref="InvoiceDescriptor"/> is not
+        /// desirable (audit-trail use cases, vendor-specific XML extensions, …).
+        ///
+        /// The attachment filename defaults to the spec name for the version+profile
+        /// combination ("factur-x.xml" / "xrechnung.xml" / "zugferd-invoice.xml"); pass an
+        /// explicit <paramref name="invoiceFilename"/> to override.
+        /// </summary>
+        public static async Task SaveRawXmlToPdfAsync(Stream targetPdfStream, ZUGFeRDVersion version, Profile profile, Stream pdfSourceStream, Stream xmlSourceStream, string invoiceFilename = null, string password = null)
+        {
+            await InvoiceDescriptorPdfSaver.SaveRawXmlAsync(targetPdfStream, version, profile, pdfSourceStream, xmlSourceStream, invoiceFilename, password);
+        } // !SaveRawXmlToPdfAsync()
+
+
+        /// <summary>
         /// Saves the invoice to a file.
         ///
         /// The invoice PDF is saved to the targetPath. The ZUGFeRD/ Factur-X or XRechnung invoice is embedded into the source PDF file.

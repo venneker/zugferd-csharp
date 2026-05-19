@@ -98,8 +98,66 @@ namespace s2industries.ZUGFeRD.PDF
                 await SaveAsync(targetStream, version, profile, format, pdfSourceStream, descriptor, password);
                 targetStream.Seek(0, SeekOrigin.Begin);
                 System.IO.File.WriteAllBytes(targetPath, targetStream.ToArray());
-            }            
+            }
         } // !SaveAsync()
+
+
+        /// <summary>
+        /// Pass-through embed: writes the supplied raw XML bytes into the source PDF without
+        /// round-tripping through <see cref="InvoiceDescriptor"/>. Used when callers must
+        /// archive the original XML verbatim (audit, vendor-specific extensions, …).
+        /// </summary>
+        internal static async Task SaveRawXmlAsync(Stream targetStream, ZUGFeRDVersion version, Profile profile, Stream pdfSourceStream, Stream xmlSourceStream, string invoiceFilename = null, string password = null)
+        {
+            if (pdfSourceStream == null)
+            {
+                throw new ArgumentNullException(nameof(pdfSourceStream));
+            }
+            if (xmlSourceStream == null)
+            {
+                throw new ArgumentNullException(nameof(xmlSourceStream));
+            }
+
+            string effectiveFilename = !string.IsNullOrWhiteSpace(invoiceFilename)
+                ? invoiceFilename
+                : _DetermineFilenameBasedOnVersionAndProfile(version, profile);
+
+            // _CreateFacturXBytes expects a seekable MemoryStream — copy if the caller passed
+            // a non-seekable / non-memory stream.
+            MemoryStream xmlMemory;
+            if (xmlSourceStream is MemoryStream alreadyMemory && alreadyMemory.CanSeek)
+            {
+                xmlMemory = alreadyMemory;
+                xmlMemory.Seek(0, SeekOrigin.Begin);
+            }
+            else
+            {
+                xmlMemory = new MemoryStream();
+                await xmlSourceStream.CopyToAsync(xmlMemory).ConfigureAwait(false);
+                xmlMemory.Seek(0, SeekOrigin.Begin);
+            }
+
+            byte[] outputDocumentBytes;
+            try
+            {
+                outputDocumentBytes = _CreateFacturXBytes(pdfSourceStream, xmlMemory, version, profile, effectiveFilename, password: password);
+            }
+            catch (Exception ex)
+            {
+                throw new SaveFailedException(ex);
+            }
+
+            try
+            {
+                await targetStream
+                    .WriteAsync(outputDocumentBytes, 0, outputDocumentBytes.Length)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                throw new SaveFailedException(ex);
+            }
+        } // !SaveRawXmlAsync()
 
 
         private static byte[] _CreateFacturXBytes(Stream pdfStream, MemoryStream xmlStream, ZUGFeRDVersion version, Profile profile, string invoiceFilename, string documentTitle = null, string documentDescription = null, string password = null)
